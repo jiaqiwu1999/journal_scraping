@@ -75,6 +75,7 @@ def main():
 
     search_word = ['NIR-II', 'imaging']
     query_string = '+'.join(search_word)
+    path_string = '_'.join(search_word)
     # print(query_string)
     base_url = "https://www.ncbi.nlm.nih.gov/pmc/"
     final_url = f"{base_url}?term={query_string}"
@@ -82,7 +83,7 @@ def main():
     soup = BeautifulSoup(req.content, 'html.parser')
     id_curr_page = get_all_pmid(soup)
     path = Path('.')
-    dest = path / query_string
+    dest = path / path_string
     if not dest.exists():
         dest.mkdir()
     fetch_apis(id_curr_page, dest)
