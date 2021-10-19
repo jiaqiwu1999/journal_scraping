@@ -41,17 +41,17 @@ def get_all_pmid(soup):
             ids.append(x.contents[0][3:])
     return ids
 
-def save_pdfs(ftpUrl, file_name, dest_path):
+def save_pdfs(ftpUrl, file_name, dest):
     resp = urlopen(ftpUrl)
-    with open(dest_path/file_name, 'wb') as f:
+    with open(dest/file_name, 'wb') as f:
         shutil.copyfileobj(resp, f)
 
-def save_tgz(ftpUrl, dest_path):
+def save_tgz(ftpUrl, dest):
     resp = urlopen(ftpUrl)
     tar = tarfile.open(fileobj=resp, mode='r|gz')
-    tar.extractall(path=dest_path)
+    tar.extractall(path=dest)
 
-def fetch_apis(id_list):
+def fetch_apis(id_list, dest_path):
     base_api = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi"
     for id in id_list:
         url = f"{base_api}?id=PMC{id}"
@@ -61,17 +61,18 @@ def fetch_apis(id_list):
         links = y.findAll('link')
         for link in links:
             if link.get('format', None) == 'pdf':
-                save_pdfs(link.get('href', None))
+                save_pdfs(link.get('href', None), f"PMC{id}.pdf", dest_path)
                 return
             else:
                 tgz_link = link.get('href', None)
-        save_tgz(tgz_link)
+        save_tgz(tgz_link, dest_path)
 
 
 def main():
     # search_input = input("Please enter search keywords, separated by space: ")
     # search_word = search_input.split()
     # size = input("Please enter the number of pages of articles (20 article per page): ")
+
     search_word = ['NIR-II', 'imaging']
     query_string = '+'.join(search_word)
     # print(query_string)
@@ -84,8 +85,9 @@ def main():
     dest = path / query_string
     if not dest.exists():
         dest.mkdir()
-    fetch_apis(id_curr_page)
-    # 2nd page and so on
+    fetch_apis(id_curr_page, dest)
+
+    # Starting from 2nd page, need to use selenium instead of soup
     p = '/usr/local/bin/chromedriver'
     driver = webdriver.Chrome(executable_path=p)
     driver.get(final_url)
@@ -94,14 +96,13 @@ def main():
         y.clear()
         y.send_keys(i)
         y.send_keys(Keys.ENTER)
-        print(driver.current_url)
-
-
-
-
-
-
-
+        ids = driver.find_elements_by_xpath("//dl[@class='rprtid']")
+        id_list = []
+        for id in ids:
+            reg = r"[0-9]+"
+            res = re.findall(reg, id.text)
+            id_list.append(res[0])
+        fetch_apis(id_list, dest)
 
 
 if __name__ == "__main__":
