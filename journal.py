@@ -1,6 +1,7 @@
 import requests
 import re
 import os
+import tarfile
 import glob
 import shutil
 from urllib.request import urlopen
@@ -31,62 +32,74 @@ def get_all_documents():
         ll.append((list)(each.glob('*.txt')))
     return len(ll)
 
-def get_all_pmid(url):
-    pass
+def get_all_pmid(soup):
+    pmids = soup.findAll('dl', class_='rprtid')
+    ids = []
+    for pmid in pmids:
+        x = pmid.find('dd')
+        if x is not None:
+            ids.append(x.contents[0][3:])
+    return ids
 
+def save_pdfs(ftpUrl, file_name, dest_path):
+    resp = urlopen(ftpUrl)
+    with open(dest_path/file_name, 'wb') as f:
+        shutil.copyfileobj(resp, f)
+
+def save_tgz(ftpUrl, dest_path):
+    resp = urlopen(ftpUrl)
+    tar = tarfile.open(fileobj=resp, mode='r|gz')
+    tar.extractall(path=dest_path)
+
+def fetch_apis(id_list):
+    base_api = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi"
+    for id in id_list:
+        url = f"{base_api}?id=PMC{id}"
+        req = requests.get(url)
+        soup = BeautifulSoup(req.content, 'html.parser')
+        y = soup.find('records')
+        links = y.findAll('link')
+        for link in links:
+            if link.get('format', None) == 'pdf':
+                save_pdfs(link.get('href', None))
+                return
+            else:
+                tgz_link = link.get('href', None)
+        save_tgz(tgz_link)
 
 
 def main():
-    # api_url = "https://www.ncbi.nlm.nih.gov/pmc/utils/oa/oa.fcgi?id=PMC7092636"
-    # req = requests.get(api_url)
-    # print(req.content)
-    # soup = BeautifulSoup(req.content, 'lxml')
-    # y = soup.find('records')
-    # for i in y.contents:
-    #     id = i['id']
-    #     for j in i.contents:
-    #         if j['format'] == 'tgz':
-    #             print("tgz format")
-    #     print(i)
-    # filter_string = "filter=simsearch2.ffrft"
-    # url = "ftp://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_pdf/67/6d/main.PMC8454557.pdf"
-    # resp = urlopen(url)
-    # with open('trial.pdf', 'wb') as f:
-    #     shutil.copyfileobj(resp, f)
-
     # search_input = input("Please enter search keywords, separated by space: ")
     # search_word = search_input.split()
-    # size = input("Please enter the number of articles: ")
-    # if size == '':
-    #     size = 10
-    search_word = ['NIR-II', 'imaging', 'liver', 'cancer']
+    # size = input("Please enter the number of pages of articles (20 article per page): ")
+    search_word = ['NIR-II', 'imaging']
     query_string = '+'.join(search_word)
     # print(query_string)
     base_url = "https://www.ncbi.nlm.nih.gov/pmc/"
     final_url = f"{base_url}?term={query_string}"
+    req = requests.get(final_url)
+    soup = BeautifulSoup(req.content, 'html.parser')
+    id_curr_page = get_all_pmid(soup)
+    path = Path('.')
+    dest = path / query_string
+    if not dest.exists():
+        dest.mkdir()
+    fetch_apis(id_curr_page)
+    # 2nd page and so on
     p = '/usr/local/bin/chromedriver'
     driver = webdriver.Chrome(executable_path=p)
     driver.get(final_url)
-    # x = driver.find_elements_by_tag_name('a')
-    # driver.execute_script("document.getElementById('pageno').value = 2")
-    for i in range(1, 10):
+    for i in range(2, 5):
         y = driver.find_element_by_id('pageno')
         y.clear()
         y.send_keys(i)
         y.send_keys(Keys.ENTER)
-    req = requests.get(final_url)
-    soup = BeautifulSoup(req.content, 'html.parser')
-    x = soup.find('a', class_='active page_link next')
-    next = x.get('href', None)
-    print(next)
-    req2 = requests.get(next)
+        print(driver.current_url)
 
 
 
-    url = "https://www.jle.com/download/epd-305192-29983-the_natural_history_and_prognosis_of_epilepsy-a.pdf"
-    
-    r = requests.get(url)
-    soup = BeautifulSoup(r.text, "html.parser")
+
+
 
 
 
